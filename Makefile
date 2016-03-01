@@ -4,7 +4,13 @@
 PATH32=/c/Rtools/mingw_32/bin
 PATH64=/c/Rtools/mingw_64/bin
 
-.PHONY: bzip2 libpng libz clean
+PRE32=C:/W32soft
+PRE64=C:/W64soft
+
+zlib=$(PRE32)/lib/libz.a $(PRE64)/lib/libz.a
+bzip2=$(PRE32)/lib/libbz2.a $(PRE64)/lib/libbz2.a
+libiconf=$(PRE32)/lib/libiconf.a $(PRE64)/lib/libiconf.a
+#libpng=$(PRE32)
 
 all: bzip2 libpng
 
@@ -14,20 +20,16 @@ bzip2:
 	make clean && \
 	PATH=$(PATH32):$$PATH make CFLAGS=-O2 libbz2.a && \
 	touch bzip2 bzip2recover && \
-	PATH=$(PATH32):$$PATH make install CFLAGS=-O2 PREFIX=/c/W32soft && \
+	PATH=$(PATH32):$$PATH make install CFLAGS=-O2 PREFIX=$(PRE32) && \
 	make clean && \
 	PATH=$(PATH64):$$PATH make CFLAGS=-O2 libbz2.a && \
 	touch bzip2 bzip2recover && \
-	PATH=$(PATH64):$$PATH make install CFLAGS=-O2 PREFIX=/c/W64soft
-
-# make CC=/c/x86_64-w64-mingw32-gcc AR=x86_64-w64-mingw32-ar RANLIB=x86_64-w64-mingw32-ranlib CFLAGS=-O2 libbz2.a
-# touch bzip2 bzip2recover
-# make install PREFIX=.../W64soft
+	PATH=$(PATH64):$$PATH make install CFLAGS=-O2 PREFIX=$(PRE64)
 
 gdal:
 	./configure --host=x86_64-w64-mingw32 --enable-static --disable-shared \
-		--prefix=/c/W64soft CFLAGS=-O2 CXXFLAGS=-O2 --without-curl \
-		--with-expat=/c/W64soft --with-odbc --without-geos --with-static-proj4 \
+		--prefix=$(PRE64) CFLAGS=-O2 CXXFLAGS=-O2 --without-curl \
+		--with-expat=$(PRE64) --with-odbc --without-geos --with-static-proj4 \
 		--with-sqlite3=.../W64soft
 
 #./configure --host=x86_64-w64-mingw32 --enable-static --disable-shared \
@@ -38,16 +40,23 @@ gdal:
 libpng: zlib
 	tar xf libpng*tar.xz
 	cd libpng*/ && \
-	PATH=$(PATH32):$$PATH ./configure --enable-static --disable-shared \
-	--prefix=/c/W32soft CFLAGS=-O2 CXXFLAGS=-O2 LIBS=-L/c/W32soft/lib \
-	CPPFLAGS=-I/c/W32soft/include && \
-	PATH=$(PATH32):$$PATH make && \
-	PATH=$(PATH32):$$PATH make install
+	PATH=$(PATH64):$$PATH ./configure --enable-static --disable-shared \
+	--prefix=$(PRE64) CFLAGS=-O2 CXXFLAGS=-O2 LIBS=-L$(PRE64)/lib CPPFLAGS=-I$(PRE64)/include && \
+	PATH=$(PATH64):$$PATH make
+	#&& \
+	PATH=$(PATH32):$$PATH make install && \
+	make clean && \
+	PATH=$(PATH64):$$PATH ./configure --enable-static --disable-shared \
+	--prefix=$(PRE64) && \
+	PATH=$(PATH64):$$PATH make && \
+	PATH=$(PATH64):$$PATH make install
 
-libxml2:
-./configure --host=x86_64-w64-mingw32 --enable-static --disable-shared \
-prefix=.../W64soft CFLAGS=-O2 CXXFLAGS=-O2 --without-python \
---with-zlib=.../W64soft --with-iconv=.../W64soft --without-lzma
+libxml2: zlib
+	tar xf libxml2*tar.xz
+	cd libxml2*/ && \
+	PATH=$(PATH64):$$PATH ./configure --enable-static --disable-shared \
+    --prefix=$(PRE64) CFLAGS=-O2 CXXFLAGS=-O2 --without-python \
+    --with-zlib=$(PRE64) --without-lzma
 
 mpfr:
 ./configure --host=x86_64-w64-mingw32 --enable-static --disable-shared \
@@ -85,14 +94,34 @@ udunits2:
 	LDFLAGS=-L.../W64soft/lib CPPFLAGS=-I.../W64soft/include
 
 zlib:
+	tar xf zlib*tar.xz
 	cd zlib*/ && \
-	PATH=$(PATH64):$$PATH ./configure --static  -prefix=.../W64soft && \
-	PATH=$(PATH64):$$PATH make && \
-	PATH=$(PATH64):$$PATH make install && \
+	patch < ../zlib.patch && \
+	PATH=$(PATH32):$$PATH ./configure --static --prefix=$(PRE32) && \
+	PATH=$(PATH32):$$PATH make && \
+	PATH=$(PATH32):$$PATH make install && \
 	make clean && \
-	PATH=$(PATH32):$$PATH ./configure --static  -prefix=.../W32soft && \
+	PATH=$(PATH64):$$PATH ./configure --static --prefix=$(PRE64) && \
+	PATH=$(PATH64):$$PATH make && \
+	PATH=$(PATH64):$$PATH make install
+
+iconv:
+	
+clean:
+	rm -rf bzip2*/ libpng*/ zlib*/ $(PRE32) $(PRE64)
+	
+$(PRE32)/lib/%.a:
+	tar xf $**tar.xz
+	cd $**/ && \
+	PATH=$(PATH32):$$PATH ./configure --build i686-pc-mingw32 --enable-static --disable-shared \
+	  --prefix=$(PRE32) CFLAGS=-O2 CXXFLAGS=-O2 MAKE=/c/Rtools/bin/make && \
 	PATH=$(PATH32):$$PATH make && \
 	PATH=$(PATH32):$$PATH make install
 	
-clean:
-	rm -r bzip2*/ libpng*/ zlib*/
+$(PRE64)/lib/%.a:
+	tar xf $**tar.xz
+	cd $**/ && \
+	PATH=$(PATH64):$$PATH ./configure --build x86_64-pc-mingw64 --enable-static --disable-shared \
+	  --prefix=$(PRE64) CFLAGS=-O2 CXXFLAGS=-O2 MAKE=/c/Rtools/bin/make && \
+	PATH=$(PATH64):$$PATH make && \
+	PATH=$(PATH64):$$PATH make install
